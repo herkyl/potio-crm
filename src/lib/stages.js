@@ -22,13 +22,41 @@ export const STAGE_MILESTONE = {
 	opportunity: 'opportunity_at'
 };
 
+// `lost` and `disqualified` are deliberately separate. Lost means we engaged and
+// it didn't work out — that's real funnel data. Disqualified means the prospect
+// should never have been accepted, or can't be worked at all; counting those as
+// lost would pollute the drop-off numbers with people who were never in play.
 export const TERMINAL_STATUSES = [
 	{ id: 'won', label: 'Won', icon: 'trophy' },
 	{ id: 'lost', label: 'Lost', icon: 'x' },
-	{ id: 'parked', label: 'Parked', icon: 'pause' }
+	{ id: 'parked', label: 'Parked', icon: 'pause' },
+	{ id: 'disqualified', label: 'Disqualified', icon: 'ban' }
 ];
 
-export const STATUSES = ['open', 'won', 'lost', 'parked'];
+export const STATUSES = ['open', ...TERMINAL_STATUSES.map((s) => s.id)];
+
+export const statusLabel = (id) => TERMINAL_STATUSES.find((s) => s.id === id)?.label ?? id;
+
+/**
+ * Suggested reasons when disqualifying. Suggestions, not a constraint — the
+ * field stays free text so an unanticipated reason is still recordable.
+ */
+export const DISQUALIFY_REASONS = [
+	'Not ICP',
+	'No LinkedIn found',
+	'Wrong person / mismatch',
+	'Competitor or peer',
+	'Inactive account',
+	'Other'
+];
+
+/**
+ * Disqualified prospects stay put — they are never pushed back to the source.
+ * The record that we tried is worth keeping, and they could not resurface
+ * anyway: ingest is `ON CONFLICT DO NOTHING` and the candidate is already
+ * marked `accepted`.
+ */
+export const KEEP_ON_DISQUALIFY = true;
 
 export const stageLabel = (id) => STAGES.find((s) => s.id === id)?.label ?? id;
 

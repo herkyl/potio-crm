@@ -10,7 +10,15 @@
 	import Badge from '$lib/components/Badge.svelte';
 	import ConfidenceBar from '$lib/components/ConfidenceBar.svelte';
 	import InlineField from '$lib/components/InlineField.svelte';
-	import { STAGES, TERMINAL_STATUSES, stageLabel, isStale, staleAfter } from '$lib/stages.js';
+	import {
+		STAGES,
+		TERMINAL_STATUSES,
+		DISQUALIFY_REASONS,
+		stageLabel,
+		statusLabel,
+		isStale,
+		staleAfter
+	} from '$lib/stages.js';
 	import { parseJson, fullDate, shortAge, ago, daysBetween, truncate } from '$lib/format.js';
 	import { normaliseLinkedInSlug } from '$lib/linkedin.js';
 
@@ -18,7 +26,19 @@
 
 	let saveError = $state(null);
 	let closing = $state(false);
+	let closeStatus = $state(null);
+	let closeReason = $state('');
 	let noteBody = $state('');
+
+	// Spelled out in the UI because the lost/disqualified distinction is the whole
+	// point of having both, and it's easy to reach for the wrong one.
+	const CLOSE_MEANING = {
+		won: 'They became a customer.',
+		lost: 'We engaged and it did not work out. Counts as funnel drop-off.',
+		parked: 'Still interesting, wrong time. The icebox.',
+		disqualified:
+			'Should not have been accepted, or cannot be worked. Kept on record, excluded from funnel stats.'
+	};
 
 	// Inline edits report through `saveError`; the form actions report through
 	// `form`. One banner shows whichever happened.
@@ -91,7 +111,7 @@
 			</div>
 			<div class="head-state">
 				<Badge tone={p.status === 'open' ? 'prospect' : 'neutral'}>
-					{p.status === 'open' ? stageLabel(p.stage) : p.status}
+					{p.status === 'open' ? stageLabel(p.stage) : statusLabel(p.status)}
 				</Badge>
 				<span class="age" class:stale>
 					{daysInStage}d in {stageLabel(p.stage)}
@@ -288,20 +308,72 @@
 		{#if p.status === 'open'}
 			{#if closing}
 				<form method="POST" action="?/status" use:enhance class="close-form">
-					<input name="reason" placeholder="Reason (optional)" />
+					<input type="hidden" name="status" value={closeStatus ?? ''} />
+
+					<!-- Pick the outcome first, so the reason field can offer presets
+					     that actually match it. -->
 					<div class="close-buttons">
 						{#each TERMINAL_STATUSES as terminal}
-							<Button
-								size="sm"
-								type="submit"
-								icon={terminal.icon}
-								name="status"
-								value={terminal.id}
+							<button
+								type="button"
+								class="outcome {terminal.id}"
+								class:chosen={closeStatus === terminal.id}
+								aria-pressed={closeStatus === terminal.id}
+								onclick={() => (closeStatus = terminal.id)}
 							>
+								<Icon name={terminal.icon} size={14} />
 								{terminal.label}
-							</Button>
+							</button>
 						{/each}
-						<Button size="sm" variant="ghost" onclick={() => (closing = false)}>Cancel</Button>
+					</div>
+
+					{#if closeStatus}
+						<p class="close-meaning">{CLOSE_MEANING[closeStatus]}</p>
+
+						{#if closeStatus === 'disqualified'}
+							<div class="presets">
+								{#each DISQUALIFY_REASONS as preset}
+									<button
+										type="button"
+										class="preset"
+										class:chosen={closeReason === preset}
+										onclick={() => (closeReason = preset)}
+									>
+										{preset}
+									</button>
+								{/each}
+							</div>
+						{/if}
+
+						<input
+							name="reason"
+							bind:value={closeReason}
+							placeholder={closeStatus === 'disqualified'
+								? 'Reason — pick one above or type your own'
+								: 'Reason (optional)'}
+						/>
+					{/if}
+
+					<div class="close-buttons">
+						<Button
+							size="sm"
+							variant={closeStatus === 'disqualified' ? 'danger' : 'primary'}
+							type="submit"
+							disabled={!closeStatus}
+						>
+							{closeStatus ? `Close as ${statusLabel(closeStatus)}` : 'Pick an outcome'}
+						</Button>
+						<Button
+							size="sm"
+							variant="ghost"
+							onclick={() => {
+								closing = false;
+								closeStatus = null;
+								closeReason = '';
+							}}
+						>
+							Cancel
+						</Button>
 					</div>
 				</form>
 			{:else}
@@ -310,7 +382,7 @@
 		{:else}
 			<div class="closed">
 				<p>
-					<strong>{p.status}</strong>
+					<strong>{statusLabel(p.status)}</strong>
 					in {stageLabel(p.stage)}
 					{#if p.closed_at}· {fullDate(p.closed_at)}{/if}
 				</p>
@@ -639,7 +711,92 @@
 
 	.close-buttons {
 		display: flex;
+		flex-wrap: wrap;
 		gap: var(--space-2);
+	}
+
+	.outcome {
+		display: inline-flex;
+		align-items: center;
+		gap: var(--space-2);
+		padding: var(--space-1) var(--space-3);
+		min-height: 30px;
+		border: 1px solid var(--border-subtle);
+		border-radius: var(--radius-lg);
+		background: #ffffff;
+		font-size: var(--text-sm);
+		font-weight: var(--weight-semi);
+		color: var(--text-secondary);
+		transition:
+			background var(--transition),
+			border-color var(--transition),
+			color var(--transition);
+
+		&:hover {
+			background: var(--bg-hover);
+			color: var(--text-primary);
+		}
+
+		&.chosen {
+			color: var(--text-primary);
+			border-color: transparent;
+		}
+
+		&.won.chosen {
+			background: var(--bg-column-won);
+			color: var(--accent-text);
+		}
+
+		&.lost.chosen {
+			background: var(--reject-soft);
+			color: #991b1b;
+		}
+
+		&.parked.chosen {
+			background: var(--bg-column-parked);
+			color: #92400e;
+		}
+
+		/* Cooler than lost — never in play, rather than didn't convert. */
+		&.disqualified.chosen {
+			background: var(--bg-column-disqualified);
+			color: #475569;
+		}
+	}
+
+	.close-meaning {
+		font-size: var(--text-sm);
+		color: var(--text-secondary);
+	}
+
+	.presets {
+		display: flex;
+		flex-wrap: wrap;
+		gap: var(--space-2);
+	}
+
+	.preset {
+		padding: 2px var(--space-3);
+		border: 1px solid var(--border-subtle);
+		border-radius: var(--radius-pill);
+		background: #ffffff;
+		font-size: var(--text-xs);
+		font-weight: var(--weight-medium);
+		color: var(--text-secondary);
+		transition:
+			background var(--transition),
+			color var(--transition);
+
+		&:hover {
+			background: var(--bg-hover);
+			color: var(--text-primary);
+		}
+
+		&.chosen {
+			background: var(--bg-column-disqualified);
+			border-color: transparent;
+			color: #475569;
+		}
 	}
 
 	.closed {

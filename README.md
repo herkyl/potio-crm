@@ -73,6 +73,23 @@ without it every rejected candidate would come back as new forever. It never upd
 normalised LinkedIn slug. With no slug but an exact name match it stops and asks — names are
 not identities, so nothing auto-merges on one.
 
+**Closing statuses** are `won`, `lost`, `parked` and `disqualified`. The last two distinctions
+matter:
+
+- `lost` — we engaged and it didn't work out. Real funnel drop-off data.
+- `disqualified` — shouldn't have been accepted, or can't be worked (not ICP, no LinkedIn
+  found, wrong person, competitor, inactive). Never in play, so counting it as lost would
+  pollute the drop-off numbers.
+
+Disqualified prospects **stay put** — they are never pushed back to the source. The record
+that you tried is worth keeping, and they couldn't resurface anyway: ingest is
+`ON CONFLICT DO NOTHING` and the candidate is already marked `accepted`.
+
+Every pipeline count keys off `status = 'open'`, so all four closed statuses are excluded
+from the worklist and sidebar by construction. The one exception is the rolling 7-day invite
+counter, which deliberately ignores status — it measures requests actually sent against
+LinkedIn's weekly cap, and disqualifying someone afterwards doesn't un-send the invite.
+
 **Stage changes** ([`src/lib/server/prospects.js`](src/lib/server/prospects.js)) all go
 through `changeStage`, whether triggered by a drag or by the modal. It writes the stage,
 resets `stage_entered_at`, sets the milestone timestamp *only if not already set*, and

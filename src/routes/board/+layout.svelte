@@ -511,6 +511,14 @@
 		&.parked {
 			background: var(--bg-column-parked);
 		}
+
+		&.disqualified {
+			background: var(--bg-column-disqualified);
+
+			.terminal-toggle {
+				color: var(--text-muted);
+			}
+		}
 	}
 
 	.terminal-toggle {

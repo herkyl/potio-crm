@@ -7,7 +7,14 @@
 	import Icon from '$lib/components/Icon.svelte';
 	import Avatar from '$lib/components/Avatar.svelte';
 	import Badge from '$lib/components/Badge.svelte';
-	import { STAGES, STAGE_IDS, TERMINAL_STATUSES, stageLabel, isStale } from '$lib/stages.js';
+	import {
+		STAGES,
+		STAGE_IDS,
+		TERMINAL_STATUSES,
+		stageLabel,
+		statusLabel,
+		isStale
+	} from '$lib/stages.js';
 	import { shortAge, fullDate, truncate, daysBetween } from '$lib/format.js';
 
 	let { data, form } = $props();
@@ -107,7 +114,12 @@
 </PageHeader>
 
 {#if form?.done}
-	<p class="flash">Moved {form.done} to {stageLabel(form.target)}.</p>
+	<!-- The bulk target is either a stage or a closing status. -->
+	<p class="flash">
+		Moved {form.done} to {STAGE_IDS.includes(form.target)
+			? stageLabel(form.target)
+			: statusLabel(form.target)}.
+	</p>
 {/if}
 
 {#if selected.size > 0}
@@ -199,7 +211,9 @@
 							{#if row.status === 'open'}
 								<span class="dim">open</span>
 							{:else}
-								<Badge tone={row.status === 'won' ? 'prospect' : 'unknown'}>{row.status}</Badge>
+								<Badge tone={row.status === 'won' ? 'prospect' : 'unknown'}>
+									{statusLabel(row.status)}
+								</Badge>
 							{/if}
 						</td>
 						<td class="dim">{row.company || '—'}</td>

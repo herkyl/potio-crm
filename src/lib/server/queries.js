@@ -88,9 +88,13 @@ export async function listCandidates(db, sourceId, filters = {}) {
 	const rows = await db.all(
 		`SELECT sl.id, sl.external_id, sl.status, sl.label, sl.confidence, sl.reasoning,
 		        sl.evidence_json, sl.snapshot_json, sl.found_at, sl.triaged_at, sl.person_id,
-		        p.id AS prospect_id
+		        -- Any prospect, not just an open one: a closed or disqualified card
+		        -- must still be reachable from the Accepted tab. Open wins if there
+		        -- are several.
+		        (SELECT id FROM prospects
+		          WHERE person_id = sl.person_id
+		          ORDER BY (status = 'open') DESC, created_at DESC LIMIT 1) AS prospect_id
 		 FROM source_leads sl
-		 LEFT JOIN prospects p ON p.person_id = sl.person_id AND p.status = 'open'
 		 WHERE ${where.join(' AND ')}
 		 ORDER BY COALESCE(sl.confidence, 0) DESC, sl.found_at DESC
 		 LIMIT 400`,
@@ -121,9 +125,11 @@ export async function candidateTabCounts(db, sourceId) {
 
 export async function getCandidate(db, leadId) {
 	const lead = await db.get(
-		`SELECT sl.*, p.id AS prospect_id
+		`SELECT sl.*,
+		        (SELECT id FROM prospects
+		          WHERE person_id = sl.person_id
+		          ORDER BY (status = 'open') DESC, created_at DESC LIMIT 1) AS prospect_id
 		 FROM source_leads sl
-		 LEFT JOIN prospects p ON p.person_id = sl.person_id AND p.status = 'open'
 		 WHERE sl.id = ?`,
 		[leadId]
 	);
@@ -227,7 +233,17 @@ export async function getProspect(db, prospectId) {
 
 // --- Worklist --------------------------------------------------------------
 
-/** The dashboard strip. SPEC §3.6. */
+/**
+ * The dashboard strip. SPEC §3.6.
+ *
+ * Every pipeline count keys off `status='open'`, so won / lost / parked /
+ * disqualified are all excluded by construction.
+ *
+ * `invites_7d` deliberately does not filter on status. It is not a funnel stat —
+ * it is a rolling count of connection requests actually sent, measured against
+ * LinkedIn's weekly cap. Disqualifying someone afterwards does not un-send the
+ * invite, so excluding them would under-report how close you are to the limit.
+ */
 export async function worklist(db) {
 	const row = await db.get(`
 		SELECT
