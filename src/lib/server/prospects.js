@@ -126,15 +126,23 @@ export async function updatePerson(db, personId, patch, prospectId = null) {
 	const sets = fields.map((f) => `${f} = ?`).join(', ');
 	const args = fields.map((f) => (patch[f] === '' ? null : patch[f]));
 
-	await db.run(`UPDATE people SET ${sets}, updated_at = ? WHERE id = ?`, [...args, now, personId]);
+	const statements = [
+		{
+			sql: `UPDATE people SET ${sets}, updated_at = ? WHERE id = ?`,
+			args: [...args, now, personId]
+		}
+	];
 
 	if (prospectId) {
-		await db.run(
-			`INSERT INTO activities (id, prospect_id, type, body, occurred_at)
-			 VALUES (?, ?, 'field_edit', ?, ?)`,
-			[newId(), prospectId, `Edited ${fields.join(', ')}`, now]
-		);
+		statements.push({
+			sql: `INSERT INTO activities (id, prospect_id, type, body, occurred_at)
+			      VALUES (?, ?, 'field_edit', ?, ?)`,
+			args: [newId(), prospectId, `Edited ${fields.join(', ')}`, now]
+		});
 	}
+
+	// One round trip instead of two. Over HTTP that halves the save.
+	await db.batch(statements);
 
 	return { changed: true, fields };
 }

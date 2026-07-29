@@ -2,7 +2,7 @@
 	// The prospect card modal, rendered over the board. SPEC §3.4.
 
 	import { enhance, deserialize } from '$app/forms';
-	import { goto, invalidateAll } from '$app/navigation';
+	import { goto, invalidate } from '$app/navigation';
 	import Modal from '$lib/components/Modal.svelte';
 	import Button from '$lib/components/Button.svelte';
 	import Icon from '$lib/components/Icon.svelte';
@@ -44,32 +44,99 @@
 	// `form`. One banner shows whichever happened.
 	const errorMessage = $derived(saveError ?? form?.error ?? null);
 
-	const p = $derived(data.prospect);
+	// Locally applied edits, layered over the server's copy. This is what makes a
+	// field edit feel instant: the input reflects the change immediately and the
+	// request settles in the background.
+	let edits = $state({});
+	let saving = $state(0);
+	// The board underneath shows name/headline/company, so it needs refreshing —
+	// but only once, when the modal closes, not after every keystroke.
+	let boardDirty = $state(false);
+
+	const p = $derived({ ...data.prospect, ...edits });
 	const stale = $derived(p.status === 'open' && isStale(p.stage, p.stage_entered_at));
 	const daysInStage = $derived(daysBetween(p.stage_entered_at));
 
-	const close = () => goto('/board');
+	// A fresh server payload supersedes the optimistic overlay.
+	$effect(() => {
+		data.prospect;
+		edits = {};
+	});
 
-	/** Inline edits post to the same action a full form would. */
+	async function close() {
+		if (boardDirty) await invalidate('crm:board');
+		goto('/board');
+	}
+
+	/**
+	 * Inline edits post to the same action a full form would, but never call
+	 * `invalidateAll()`. That used to re-run every load function on the page —
+	 * seven queries, ~1.2s — for a one-column update that already succeeded.
+	 */
 	async function savePerson(field, value) {
 		saveError = null;
-		const body = new FormData();
-		body.set('personId', p.person_id);
-		body.set(field, value);
+		const previous = p[field];
+		edits = { ...edits, [field]: value }; // optimistic
+		saving++;
 
-		const response = await fetch('?/updatePerson', { method: 'POST', body });
-		const result = deserialize(await response.text());
+		try {
+			const body = new FormData();
+			body.set('personId', p.person_id);
+			body.set(field, value);
 
-		if (result.type === 'success' && result.data?.error) {
-			saveError = result.data.error;
-			return;
+			const response = await fetch('?/updatePerson', { method: 'POST', body });
+			const result = deserialize(await response.text());
+
+			const message =
+				result.type === 'error'
+					? (result.error?.message ?? 'Save failed')
+					: (result.data?.error ?? null);
+
+			if (message) {
+				// Roll the field back so the UI never claims a save that didn't happen.
+				edits = { ...edits, [field]: previous };
+				saveError = message;
+				return;
+			}
+
+			boardDirty = true;
+		} catch (err) {
+			edits = { ...edits, [field]: previous };
+			saveError = err.message ?? 'Save failed';
+		} finally {
+			saving--;
 		}
-		if (result.type === 'error') {
-			saveError = result.error?.message ?? 'Save failed';
-			return;
-		}
-		await invalidateAll();
 	}
+
+	/**
+	 * Refresh only what a given mutation actually changed, instead of everything.
+	 *  - prospect: this modal's own data (timeline, milestones)
+	 *  - board:    the columns underneath (stage, card face, worklist stats)
+	 *  - counts:   the sidebar badges, which only a status change moves
+	 */
+	const refresh = (...keys) => Promise.all(keys.map((key) => invalidate(key)));
+
+	const afterEdit =
+		() =>
+		async ({ update }) => {
+			await update({ invalidateAll: false });
+			await refresh('crm:prospect');
+			boardDirty = true;
+		};
+
+	const afterStageChange =
+		() =>
+		async ({ update }) => {
+			await update({ invalidateAll: false });
+			await refresh('crm:prospect', 'crm:board');
+		};
+
+	const afterStatusChange =
+		() =>
+		async ({ update }) => {
+			await update({ invalidateAll: false });
+			await refresh('crm:prospect', 'crm:board', 'crm:counts');
+		};
 
 	const MILESTONES = [
 		['Shortlisted', 'shortlisted_at'],
@@ -110,6 +177,9 @@
 				<p class="sub">{p.headline || p.company || 'No headline'}</p>
 			</div>
 			<div class="head-state">
+				<!-- Saves are optimistic now, so the only cue that one is in flight is
+				     this. Absence of it means everything has landed. -->
+				{#if saving > 0}<span class="saving">Saving…</span>{/if}
 				<Badge tone={p.status === 'open' ? 'prospect' : 'neutral'}>
 					{p.status === 'open' ? stageLabel(p.stage) : statusLabel(p.status)}
 				</Badge>
@@ -160,7 +230,7 @@
 		</div>
 
 		<div class="controls">
-			<form method="POST" action="?/stage" use:enhance>
+			<form method="POST" action="?/stage" use:enhance={afterStageChange}>
 				<label>
 					<span>Stage</span>
 					<select
@@ -175,7 +245,7 @@
 				</label>
 			</form>
 
-			<form method="POST" action="?/nextAction" use:enhance class="next-action">
+			<form method="POST" action="?/nextAction" use:enhance={afterEdit} class="next-action">
 				<label>
 					<span>Next action</span>
 					<input name="next_action" value={p.next_action ?? ''} placeholder="e.g. Send invite" />
@@ -272,7 +342,11 @@
 			action="?/note"
 			use:enhance={() =>
 				async ({ update }) => {
-					await update();
+					// Only the timeline changes here; the board just needs the note
+					// count refreshed, which happens once on close.
+					await update({ invalidateAll: false });
+					await refresh('crm:prospect');
+					boardDirty = true;
 					noteBody = '';
 				}}
 			class="note-form"
@@ -307,7 +381,7 @@
 		<h3>Close</h3>
 		{#if p.status === 'open'}
 			{#if closing}
-				<form method="POST" action="?/status" use:enhance class="close-form">
+				<form method="POST" action="?/status" use:enhance={afterStatusChange} class="close-form">
 					<input type="hidden" name="status" value={closeStatus ?? ''} />
 
 					<!-- Pick the outcome first, so the reason field can offer presets
@@ -387,7 +461,7 @@
 					{#if p.closed_at}· {fullDate(p.closed_at)}{/if}
 				</p>
 				{#if p.close_reason}<p class="dim">{p.close_reason}</p>{/if}
-				<form method="POST" action="?/status" use:enhance>
+				<form method="POST" action="?/status" use:enhance={afterStatusChange}>
 					<input type="hidden" name="status" value="open" />
 					<Button size="sm" type="submit" icon="undo">Reopen</Button>
 				</form>
@@ -459,6 +533,12 @@
 			color: var(--warn);
 			font-weight: var(--weight-semi);
 		}
+	}
+
+	.saving {
+		font-size: var(--text-xs);
+		color: var(--text-muted);
+		font-variant-numeric: tabular-nums;
 	}
 
 	section + section {

@@ -11,7 +11,9 @@ import {
 import { STAGE_IDS, STATUSES } from '$lib/stages.js';
 import { normaliseLinkedInSlug, linkedInUrlFromSlug } from '$lib/linkedin.js';
 
-export async function load({ params }) {
+export async function load({ params, depends }) {
+	depends('crm:prospect');
+
 	const detail = await getProspect(db(), params.prospectId);
 	if (!detail) error(404, 'Prospect not found');
 	return detail;

@@ -1,7 +1,7 @@
 <script>
 	import { dndzone } from 'svelte-dnd-action';
 	import { flip } from 'svelte/animate';
-	import { invalidateAll, goto } from '$app/navigation';
+	import { invalidate, goto } from '$app/navigation';
 	import PageHeader from '$lib/components/PageHeader.svelte';
 	import Button from '$lib/components/Button.svelte';
 	import Icon from '$lib/components/Icon.svelte';
@@ -18,7 +18,8 @@
 	let search = $state('');
 	let staleOnly = $state(false);
 	let dueOnly = $state(false);
-	let expanded = $state({ won: false, lost: false, parked: false });
+	// Derived from the status list so a new terminal status can't be forgotten here.
+	let expanded = $state(Object.fromEntries(TERMINAL_IDS.map((id) => [id, false])));
 	let addingManually = $state(false);
 	let moveError = $state(null);
 
@@ -72,16 +73,24 @@
 
 		const isTerminal = TERMINAL_IDS.includes(zone);
 
+		// Remember where each card came from, so a failed request can put it back
+		// rather than leaving the UI claiming a move that never happened.
+		const rollback = moved.map((p) => ({ prospect: p, stage: p.stage, status: p.status }));
+
+		// Optimistic, so the card doesn't snap back while the request is in flight.
 		for (const prospect of moved) {
-			// Optimistic, so the card doesn't snap back while the request is in flight.
 			if (isTerminal) prospect.status = zone;
 			else {
 				prospect.stage = zone;
 				prospect.status = 'open';
 			}
+		}
 
-			try {
-				const response = await fetch('/board/move', {
+		// Fire the moves together rather than awaiting each in turn — a multi-card
+		// drop shouldn't cost one serial round trip per card.
+		const results = await Promise.allSettled(
+			moved.map((prospect) =>
+				fetch('/board/move', {
 					method: 'POST',
 					headers: { 'content-type': 'application/json' },
 					body: JSON.stringify(
@@ -89,14 +98,31 @@
 							? { prospectId: prospect.id, status: zone }
 							: { prospectId: prospect.id, stage: zone }
 					)
-				});
-				if (!response.ok) throw new Error((await response.json()).message ?? response.statusText);
-			} catch (err) {
-				moveError = `Couldn't move ${prospect.full_name}: ${err.message}`;
-			}
-		}
+				}).then(async (response) => {
+					if (!response.ok) {
+						throw new Error(
+							(await response.json().catch(() => ({}))).message ?? response.statusText
+						);
+					}
+				})
+			)
+		);
 
-		await invalidateAll();
+		let failed = false;
+		results.forEach((result, i) => {
+			if (result.status !== 'rejected') return;
+			failed = true;
+			const { prospect, stage, status } = rollback[i];
+			prospect.stage = stage;
+			prospect.status = status;
+			moveError = `Couldn't move ${prospect.full_name}: ${result.reason.message}`;
+		});
+
+		// Server-side timestamps and the worklist counts changed, so refresh the
+		// board — but only the board. The sidebar badges track open prospects,
+		// which a stage move doesn't alter; a close does, hence the extra key.
+		const keys = isTerminal || failed ? ['crm:board', 'crm:counts'] : ['crm:board'];
+		await Promise.all(keys.map((key) => invalidate(key)));
 	}
 </script>
 

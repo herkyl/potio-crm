@@ -8,6 +8,7 @@
 import { timingSafeEqual } from 'node:crypto';
 import { env } from '$env/dynamic/private';
 import { dev } from '$app/environment';
+import { runTracked, logRequest, report, tracingEnabled } from '$lib/server/instrument.js';
 
 const CHALLENGE = {
 	'WWW-Authenticate': 'Basic realm="Potio CRM", charset="UTF-8"'
@@ -43,8 +44,32 @@ export async function handle({ event, resolve }) {
 		return new Response('Unauthorized', { status: 401, headers: CHALLENGE });
 	}
 
-	const response = await resolve(event);
-	// A page listing leads should never be indexed, whatever links to it.
+	if (!tracingEnabled(dev)) return withHeaders(await resolve(event));
+
+	// Every Turso statement is an HTTP round trip, so the query count per request
+	// is the number that actually matters. Log it rather than guess at it.
+	return runTracked(async () => {
+		const started = performance.now();
+		const response = withHeaders(await resolve(event));
+		const totalMs = Math.round(performance.now() - started);
+
+		logRequest({
+			method: event.request.method,
+			path: event.url.pathname + event.url.search,
+			status: response.status,
+			totalMs
+		});
+
+		response.headers.set(
+			'Server-Timing',
+			`db;dur=${Math.round(report()?.dbMs ?? 0)}, total;dur=${totalMs}`
+		);
+		return response;
+	});
+}
+
+/** A page listing leads should never be indexed, whatever links to it. */
+function withHeaders(response) {
 	response.headers.set('X-Robots-Tag', 'noindex, nofollow');
 	return response;
 }

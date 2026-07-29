@@ -15,24 +15,52 @@
 		onsave
 	} = $props();
 
+	const AUTOSAVE_MS = 400;
+
 	let editing = $state(false);
 	let draft = $state('');
 	let input = $state(null);
 
+	let timer = null;
+	// The last value actually sent, so a pause-then-blur doesn't send twice.
+	let lastSent = null;
+
 	function start() {
 		draft = value ?? '';
+		lastSent = value ?? '';
 		editing = true;
 	}
 
+	function send() {
+		const next = draft ?? '';
+		if (next === lastSent) return;
+		lastSent = next;
+		onsave?.(name, next);
+	}
+
+	/** Autosave on a pause in typing, so a long edit isn't lost if the tab dies. */
+	function oninput() {
+		clearTimeout(timer);
+		timer = setTimeout(send, AUTOSAVE_MS);
+	}
+
 	function commit() {
+		clearTimeout(timer);
 		editing = false;
-		if ((draft ?? '') !== (value ?? '')) onsave?.(name, draft);
+		send();
+	}
+
+	function abandon() {
+		clearTimeout(timer);
+		editing = false;
+		// Anything already autosaved stays saved; only the un-sent tail is dropped.
+		draft = lastSent ?? value ?? '';
 	}
 
 	function onkeydown(event) {
 		if (event.key === 'Escape') {
 			event.stopPropagation();
-			editing = false;
+			abandon();
 		} else if (event.key === 'Enter' && !multiline) {
 			event.preventDefault();
 			commit();
@@ -42,6 +70,8 @@
 	$effect(() => {
 		if (editing) input?.focus();
 	});
+
+	$effect(() => () => clearTimeout(timer));
 </script>
 
 <div class="field">
@@ -53,12 +83,20 @@
 				bind:this={input}
 				bind:value={draft}
 				rows="3"
+				{oninput}
 				onblur={commit}
 				{onkeydown}
 				aria-label={label}
 			></textarea>
 		{:else}
-			<input bind:this={input} bind:value={draft} onblur={commit} {onkeydown} aria-label={label} />
+			<input
+				bind:this={input}
+				bind:value={draft}
+				{oninput}
+				onblur={commit}
+				{onkeydown}
+				aria-label={label}
+			/>
 		{/if}
 		{#if hint}<small class="hint">{@render hint(draft)}</small>{/if}
 	{:else}

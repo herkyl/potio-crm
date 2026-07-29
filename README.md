@@ -97,6 +97,34 @@ appends an `activities` row — atomically. The `COALESCE` on the milestone is w
 backwards drags safe: moving a card back to Shortlist must not erase that you sent the
 invite on the 3rd.
 
+## Performance
+
+Turso runs over HTTP, so **every statement is a network round trip**. The number of queries
+per request matters more than the cleverness of any one of them, and N+1 patterns that are
+invisible against local SQLite are brutal here.
+
+In dev, every request logs its query count and timing:
+
+```
+  GET /board 200 — 112ms total · 3 queries 218ms db · 0ms app
+```
+
+(`db` can exceed `total` when queries run concurrently — that's the point.) Requests with
+more than five queries or over 300ms of database time are marked `⚠` and list their slowest
+statements. Set `CRM_TRACE=0` to silence it, `CRM_TRACE=1` to enable it in production.
+Responses also carry a `Server-Timing` header, so the browser devtools network panel shows
+the same split.
+
+Three rules this codebase follows, learned the hard way:
+
+- **Never `invalidateAll()` after a single edit.** It re-runs every load function on the
+  page. Load functions call `depends('crm:board' | 'crm:prospect' | 'crm:counts')` so
+  mutations can refresh precisely what they changed.
+- **Mutations are optimistic.** A field edit or a stage drag updates local state
+  immediately and reconciles in the background, rolling back on failure.
+- **Independent queries go out concurrently.** If a query only needs an id, resolve that id
+  as a subquery rather than awaiting a prior round trip for it.
+
 ## Layout
 
 ```

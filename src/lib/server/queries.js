@@ -152,82 +152,115 @@ export async function getCandidate(db, leadId) {
 
 // --- Board -----------------------------------------------------------------
 
-/** Every prospect the board renders, with the counts each card face needs. */
+/**
+ * Every prospect the board renders, with the counts each card face needs, in a
+ * single round trip.
+ *
+ * This used to hang six correlated subqueries off each row. Four of them scanned
+ * `source_leads` end to end per prospect — ~2.2M row reads for one board load.
+ * Pre-aggregating each table once in a CTE and joining the result turns that
+ * into one pass over each table. See migrations/002 for the supporting indexes.
+ */
 export async function listProspects(db) {
 	return db.all(`
+		WITH act AS (
+			SELECT prospect_id,
+			       COUNT(*)                                        AS activity_count,
+			       SUM(CASE WHEN type = 'note' THEN 1 ELSE 0 END)  AS note_count
+			FROM activities
+			GROUP BY prospect_id
+		),
+		src AS (
+			SELECT person_id,
+			       COUNT(*)                 AS source_count,
+			       group_concat(source_id)  AS source_ids,
+			       MAX(confidence)          AS confidence,
+			       -- "label" here is a bare column alongside MAX(): SQLite defines
+			       -- these as taking their value from the row that produced the
+			       -- maximum, so this is the label of the highest-confidence lead --
+			       -- what the old ORDER BY ... LIMIT 1 subquery returned, without
+			       -- the extra pass. See sqlite.org/lang_select.html#bareagg
+			       label                    AS label
+			FROM source_leads
+			WHERE status = 'accepted'
+			GROUP BY person_id
+		)
 		SELECT
 			pr.id, pr.stage, pr.status, pr.close_reason,
 			pr.next_action, pr.next_action_at, pr.stage_entered_at,
 			pr.invite_sent_at, pr.closed_at, pr.created_at,
 			pe.id AS person_id, pe.full_name, pe.headline, pe.company,
 			pe.location, pe.linkedin_url, pe.linkedin_slug,
-			(SELECT COUNT(*) FROM activities a
-			  WHERE a.prospect_id = pr.id AND a.type = 'note') AS note_count,
-			(SELECT COUNT(*) FROM activities a
-			  WHERE a.prospect_id = pr.id) AS activity_count,
-			(SELECT COUNT(*) FROM source_leads sl
-			  WHERE sl.person_id = pe.id AND sl.status = 'accepted') AS source_count,
-			(SELECT group_concat(sl.source_id) FROM source_leads sl
-			  WHERE sl.person_id = pe.id AND sl.status = 'accepted') AS source_ids,
-			-- Strongest classification across the sources they came from, so the
-			-- board can filter on label/confidence the same way triage does.
-			(SELECT sl.label FROM source_leads sl
-			  WHERE sl.person_id = pe.id AND sl.status = 'accepted'
-			  ORDER BY COALESCE(sl.confidence, 0) DESC LIMIT 1) AS label,
-			(SELECT MAX(sl.confidence) FROM source_leads sl
-			  WHERE sl.person_id = pe.id AND sl.status = 'accepted') AS confidence
+			COALESCE(act.activity_count, 0) AS activity_count,
+			COALESCE(act.note_count, 0)     AS note_count,
+			COALESCE(src.source_count, 0)   AS source_count,
+			src.source_ids,
+			src.label,
+			src.confidence
 		FROM prospects pr
 		JOIN people pe ON pe.id = pr.person_id
+		LEFT JOIN act ON act.prospect_id = pr.id
+		LEFT JOIN src ON src.person_id = pe.id
 		ORDER BY pr.stage_entered_at DESC
 	`);
 }
 
-/** Full detail for the card modal: person, prospect, provenance, timeline. */
+/**
+ * Full detail for the card modal: person, prospect, provenance, timeline, posts.
+ *
+ * These four used to run in sequence, because provenance needed `person_id` from
+ * the first query and posts needed `external_id` from provenance — four serial
+ * HTTP round trips. Resolving those ids inline as subqueries makes all four
+ * independent, so they go out concurrently and cost roughly one round trip.
+ */
 export async function getProspect(db, prospectId) {
-	const prospect = await db.get(
-		`SELECT pr.*, pe.full_name, pe.first_name, pe.last_name, pe.headline, pe.location,
-		        pe.company, pe.linkedin_slug, pe.linkedin_url, pe.website_url, pe.notes AS person_notes
-		 FROM prospects pr
-		 JOIN people pe ON pe.id = pr.person_id
-		 WHERE pr.id = ?`,
-		[prospectId]
-	);
-	if (!prospect) return null;
+	// Resolves to the person behind this prospect, without a prior round trip.
+	const PERSON = '(SELECT person_id FROM prospects WHERE id = ?)';
 
-	// Provenance: every source this person came from, with the scanner's verdict.
-	const provenance = await db.all(
-		`SELECT sl.id, sl.source_id, sl.external_id, sl.label, sl.confidence, sl.reasoning,
-		        sl.evidence_json, sl.snapshot_json, sl.found_at, sl.triaged_at,
-		        s.name AS source_name
-		 FROM source_leads sl
-		 JOIN sources s ON s.id = sl.source_id
-		 WHERE sl.person_id = ?
-		 ORDER BY sl.found_at DESC`,
-		[prospect.person_id]
-	);
+	const [prospect, provenance, activities, posts] = await Promise.all([
+		db.get(
+			`SELECT pr.*, pe.full_name, pe.first_name, pe.last_name, pe.headline, pe.location,
+			        pe.company, pe.linkedin_slug, pe.linkedin_url, pe.website_url, pe.notes AS person_notes
+			 FROM prospects pr
+			 JOIN people pe ON pe.id = pr.person_id
+			 WHERE pr.id = ?`,
+			[prospectId]
+		),
 
-	const activities = await db.all(
-		`SELECT id, type, from_stage, to_stage, body, occurred_at
-		 FROM activities WHERE prospect_id = ?
-		 ORDER BY occurred_at DESC, rowid DESC`,
-		[prospectId]
-	);
+		// Every source this person came from, with the scanner's verdict.
+		db.all(
+			`SELECT sl.id, sl.source_id, sl.external_id, sl.label, sl.confidence, sl.reasoning,
+			        sl.evidence_json, sl.snapshot_json, sl.found_at, sl.triaged_at,
+			        s.name AS source_name
+			 FROM source_leads sl
+			 JOIN sources s ON s.id = sl.source_id
+			 WHERE sl.person_id = ${PERSON}
+			 ORDER BY sl.found_at DESC`,
+			[prospectId]
+		),
 
-	// Their posts, keyed off whichever external ids we know them by.
-	const externalIds = provenance.map((p) => p.external_id).filter(Boolean);
-	let posts = [];
-	if (externalIds.length) {
-		posts = await db.all(
+		db.all(
+			`SELECT id, type, from_stage, to_stage, body, occurred_at
+			 FROM activities WHERE prospect_id = ?
+			 ORDER BY occurred_at DESC, rowid DESC`,
+			[prospectId]
+		),
+
+		// Their posts, keyed off whichever external ids we know them by.
+		db.all(
 			`SELECT p.id, p.title, p.body, p.url, p.posted_at, pc.is_help_request, pc.lead_score
 			 FROM posts p
 			 LEFT JOIN post_classification pc ON pc.post_id = p.id
-			 WHERE p.author_id IN (${externalIds.map(() => '?').join(',')})
+			 WHERE p.author_id IN (
+			   SELECT external_id FROM source_leads WHERE person_id = ${PERSON}
+			 )
 			 ORDER BY p.posted_at DESC
 			 LIMIT 20`,
-			externalIds
-		);
-	}
+			[prospectId]
+		)
+	]);
 
+	if (!prospect) return null;
 	return { prospect, provenance, activities, posts };
 }
 
