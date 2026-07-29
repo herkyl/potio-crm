@@ -1,0 +1,90 @@
+/* Design tokens, read off design/reference-board.webp. SPEC §6.2 is the authority
+   for these values — the image is for spacing and proportion only.
+
+   Note the surface hierarchy, which is inverted from a typical Trello board:
+   the board area is white, columns are a barely-there warm gray, cards are
+   pure white on top of that. The gray canvas appears only outside the frame. */
+
+:root {
+	/* surfaces */
+	--bg-canvas: #efefed; /* unused — the app runs full-bleed, with no inset frame */
+	--bg-app: #ffffff;
+	--bg-column: #f6f6f5;
+	--bg-card: #ffffff;
+	--bg-hover: #fafafa;
+	--bg-sidebar: #ffffff;
+
+	/* tinted columns for terminal states */
+	--bg-column-won: #f1f8ee;
+	--bg-column-lost: #f7f6f6;
+	--bg-column-parked: #faf8f3;
+
+	/* text */
+	--text-primary: #171717;
+	--text-secondary: #6b7280;
+	--text-muted: #9ca3af;
+
+	/* lines */
+	--border-subtle: #e8e8e6;
+	--border-input: #dfdfdc;
+
+	/* radii — generous, this is the look */
+	--radius-sm: 6px;
+	--radius-md: 12px;
+	--radius-lg: 14px;
+	--radius-xl: 18px;
+	--radius-pill: 999px;
+
+	/* shadows — very light. cards barely lift off the column. */
+	--shadow-card: 0 1px 2px rgba(16, 24, 40, 0.04), 0 1px 3px rgba(16, 24, 40, 0.05);
+	--shadow-hover: 0 2px 4px rgba(16, 24, 40, 0.06), 0 4px 12px rgba(16, 24, 40, 0.07);
+	--shadow-drag: 0 8px 24px rgba(16, 24, 40, 0.14);
+	--shadow-modal: 0 12px 40px rgba(16, 24, 40, 0.16);
+	--shadow-frame: 0 4px 24px rgba(16, 24, 40, 0.06);
+
+	/* spacing */
+	--space-1: 4px;
+	--space-2: 8px;
+	--space-3: 12px;
+	--space-4: 16px;
+	--space-5: 24px;
+	--space-6: 32px;
+
+	/* type */
+	--font-sans: Inter, system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
+	--text-xs: 11px;
+	--text-sm: 13px;
+	--text-base: 14px;
+	--text-lg: 16px;
+	--text-2xl: 22px;
+	--text-3xl: 28px;
+
+	--weight-normal: 400;
+	--weight-medium: 500;
+	--weight-semi: 600;
+	--weight-bold: 700;
+
+	/* brand + intent — a single bright green carries the whole thing */
+	--accent: #86cf4a;
+	--accent-hover: #78c23c;
+	--accent-soft: #edf7e8;
+	--accent-text: #3f7220;
+
+	--accept: #86cf4a;
+	--accept-soft: #edf7e8;
+	--reject: #dc2626;
+	--reject-soft: #fee2e2;
+	--warn: #d97706;
+	--warn-soft: #fef3c7;
+
+	/* avatar / label palette */
+	--c-blue: #3b82f6;
+	--c-green: #22c55e;
+	--c-purple: #a855f7;
+	--c-orange: #f97316;
+	--c-pink: #ec4899;
+	--c-teal: #14b8a6;
+	--c-slate: #64748b;
+
+	--transition: 140ms ease;
+}
