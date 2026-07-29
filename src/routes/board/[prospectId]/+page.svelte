@@ -14,11 +14,15 @@
 	import { parseJson, fullDate, shortAge, ago, daysBetween, truncate } from '$lib/format.js';
 	import { normaliseLinkedInSlug } from '$lib/linkedin.js';
 
-	let { data } = $props();
+	let { data, form } = $props();
 
 	let saveError = $state(null);
 	let closing = $state(false);
 	let noteBody = $state('');
+
+	// Inline edits report through `saveError`; the form actions report through
+	// `form`. One banner shows whichever happened.
+	const errorMessage = $derived(saveError ?? form?.error ?? null);
 
 	const p = $derived(data.prospect);
 	const stale = $derived(p.status === 'open' && isStale(p.stage, p.stage_entered_at));
@@ -97,8 +101,8 @@
 		</div>
 	{/snippet}
 
-	{#if saveError}
-		<p class="error">{saveError}</p>
+	{#if errorMessage}
+		<p class="error">{errorMessage}</p>
 	{/if}
 
 	<!-- 1. Identity -->

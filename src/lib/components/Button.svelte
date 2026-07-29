@@ -14,6 +14,11 @@
 		title = null,
 		// Submits a form elsewhere in the document, for buttons in a modal footer.
 		form = null,
+		// A submit button that carries its own name/value, so one form can offer
+		// several outcomes (Won / Lost / Parked). Both must reach the DOM or the
+		// pair is never submitted and the action sees null.
+		name = null,
+		value = null,
 		onclick = null,
 		children
 	} = $props();
@@ -26,6 +31,8 @@
 	{href}
 	{title}
 	form={href ? undefined : form}
+	name={href ? undefined : name}
+	value={href ? undefined : value}
 	type={href ? undefined : type}
 	disabled={href ? undefined : disabled}
 	aria-disabled={href && disabled ? 'true' : undefined}

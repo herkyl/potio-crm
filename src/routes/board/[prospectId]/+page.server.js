@@ -1,4 +1,4 @@
-import { error, redirect } from '@sveltejs/kit';
+import { error, fail, redirect } from '@sveltejs/kit';
 import { db } from '$lib/server/db.js';
 import { getProspect } from '$lib/server/queries.js';
 import {
@@ -8,6 +8,7 @@ import {
 	setNextAction,
 	addNote
 } from '$lib/server/prospects.js';
+import { STAGE_IDS, STATUSES } from '$lib/stages.js';
 import { normaliseLinkedInSlug, linkedInUrlFromSlug } from '$lib/linkedin.js';
 
 export async function load({ params }) {
@@ -50,13 +51,22 @@ export const actions = {
 
 	stage: async ({ request, params }) => {
 		const data = await request.formData();
-		await changeStage(db(), params.prospectId, data.get('stage'));
+		const stage = data.get('stage');
+		if (!STAGE_IDS.includes(stage)) return fail(400, { error: `Unknown stage: ${stage}` });
+
+		await changeStage(db(), params.prospectId, stage);
 		return { saved: true };
 	},
 
 	status: async ({ request, params }) => {
 		const data = await request.formData();
-		await changeStatus(db(), params.prospectId, data.get('status'), data.get('reason'));
+		const status = data.get('status');
+		// A missing status means the submit button didn't carry its name/value.
+		// Surface it as a form error rather than a 500.
+		if (!STATUSES.includes(status)) return fail(400, { error: `Unknown status: ${status}` });
+
+		const reason = String(data.get('reason') ?? '').trim();
+		await changeStatus(db(), params.prospectId, status, reason || null);
 		return { saved: true };
 	},
 
