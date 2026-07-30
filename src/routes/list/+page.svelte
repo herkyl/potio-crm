@@ -174,7 +174,7 @@
 						/>
 					</th>
 					{#each COLUMNS as column}
-						<th>
+						<th class={column.key}>
 							<button onclick={() => sortBy(column.key)} class:sorted={sortKey === column.key}>
 								{column.label}
 								{#if sortKey === column.key}
@@ -206,8 +206,8 @@
 								</span>
 							</a>
 						</td>
-						<td><Badge tone="neutral">{stageLabel(row.stage)}</Badge></td>
-						<td>
+						<td class="stage"><Badge tone="neutral">{stageLabel(row.stage)}</Badge></td>
+						<td class="status">
 							{#if row.status === 'open'}
 								<span class="dim">open</span>
 							{:else}
@@ -216,8 +216,8 @@
 								</Badge>
 							{/if}
 						</td>
-						<td class="dim">{row.company || '—'}</td>
-						<td>
+						<td class="company dim">{row.company || '—'}</td>
+						<td class="next_action_at">
 							{#if row.next_action}
 								<span class="next">{truncate(row.next_action, 28)}</span>
 								{#if row.next_action_at}
@@ -227,7 +227,7 @@
 								<span class="dim">—</span>
 							{/if}
 						</td>
-						<td>
+						<td class="stage_entered_at">
 							<span class="age" class:stale title={fullDate(row.stage_entered_at)}>
 								{daysBetween(row.stage_entered_at)}d
 							</span>
@@ -512,5 +512,104 @@
 		max-width: 380px;
 		text-align: center;
 		color: var(--text-secondary);
+	}
+
+	/* Shed columns as width runs out, least useful first. Name and stage carry
+	   the row; the rest are available in the card. */
+	@media (max-width: 1000px) {
+		th.company,
+		td.company {
+			display: none;
+		}
+	}
+
+	@media (max-width: 820px) {
+		th.next_action_at,
+		td.next_action_at {
+			display: none;
+		}
+	}
+
+	@media (max-width: 720px) {
+		th.stage_entered_at,
+		td.stage_entered_at {
+			display: none;
+		}
+
+		/* Same reason as triage: auto layout sizes to content min-width and
+		   overflows. Fixed layout lets the name column absorb what's left. */
+		table {
+			table-layout: fixed;
+			width: 100%;
+		}
+
+		.pick {
+			width: 40px;
+		}
+
+		th.stage,
+		td.stage {
+			width: 104px;
+		}
+
+		/* The status filter sits directly above and defaults to Open, so the
+		   column is largely redundant here — and the name needs the room more. */
+		th.status,
+		td.status {
+			display: none;
+		}
+
+		.who span {
+			min-width: 0;
+		}
+
+		.name,
+		.headline {
+			overflow: hidden;
+			text-overflow: ellipsis;
+			white-space: nowrap;
+		}
+
+		thead th:first-child,
+		td:first-child {
+			padding-left: var(--space-4);
+		}
+
+		thead th:last-child,
+		td:last-child {
+			padding-right: var(--space-4);
+		}
+
+		.filters {
+			width: 100%;
+			flex-wrap: wrap;
+
+			.search {
+				flex: 1 1 100%;
+			}
+
+			input {
+				width: 100%;
+				/* 16px stops iOS Safari zooming the viewport on focus. */
+				font-size: 16px;
+			}
+		}
+
+		select {
+			flex: 1 1 auto;
+			font-size: 16px;
+		}
+
+		.bulk {
+			flex-wrap: wrap;
+			padding: var(--space-3) var(--space-4);
+		}
+	}
+
+	@media (pointer: coarse) {
+		.pick input {
+			width: 20px;
+			height: 20px;
+		}
 	}
 </style>

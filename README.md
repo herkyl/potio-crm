@@ -125,6 +125,29 @@ Three rules this codebase follows, learned the hard way:
 - **Independent queries go out concurrently.** If a query only needs an id, resolve that id
   as a subquery rather than awaiting a prior round trip for it.
 
+## Responsive behaviour
+
+Three breakpoints, used consistently. They're plain px in each component's scoped
+`<style>` — LESS variables don't cross Svelte's style boundary without extra plumbing.
+
+| Width | What changes |
+|---|---|
+| **≤1100px** | Sub-nav wraps onto multiple rows instead of squeezing the search box |
+| **≤900px** | Sidebar becomes a 60px icon rail; **board terminal columns stop being pinned** and scroll inline after the working stages; tables start shedding columns |
+| **≤720px** | Modals go full-screen; two-column form grids collapse to one; page header stacks; inputs go to 16px so iOS doesn't zoom on focus |
+
+Two things worth knowing if you touch this:
+
+- **Put mobile rules last in the stylesheet.** Media queries add no specificity, so a
+  desktop rule declared later silently wins. This bit the card modal once already.
+- **Use `minmax(0, 1fr)` for grid tracks and `table-layout: fixed` for the tables.** A
+  track's default minimum is `min-content`, so one long LinkedIn URL or bio pushes the
+  whole layout past the viewport. Both tables shed their least important columns as width
+  runs out — triage keeps name, label and the accept/reject buttons to the very end.
+
+`delayTouchStartMs: 200` on the board's drag zones separates a swipe (scrolls the board)
+from a press-and-hold (picks up a card). Without it the two gestures collide on touch.
+
 ## Layout
 
 ```

@@ -55,6 +55,19 @@
 		columns = group(visible);
 	});
 
+	/**
+	 * On touch the board scrolls horizontally, which is the same gesture as
+	 * starting a drag. `delayTouchStartMs` disambiguates: a quick swipe scrolls,
+	 * a press-and-hold picks the card up. Mouse drags are unaffected.
+	 */
+	const dndConfig = (items) => ({
+		items,
+		flipDurationMs: FLIP_MS,
+		type: 'prospect',
+		delayTouchStartMs: 200,
+		dropTargetStyle: {}
+	});
+
 	const openCount = $derived(data.prospects.filter((p) => p.status === 'open').length);
 	const staleCount = (zone) =>
 		columns[zone]?.filter((p) => p.status === 'open' && isStale(p.stage, p.stage_entered_at))
@@ -205,7 +218,7 @@
 
 				<div
 					class="cards"
-					use:dndzone={{ items: columns[stage.id], flipDurationMs: FLIP_MS, type: 'prospect' }}
+					use:dndzone={dndConfig(columns[stage.id])}
 					onconsider={(e) => onconsider(stage.id, e)}
 					onfinalize={(e) => onfinalize(stage.id, e)}
 				>
@@ -245,7 +258,7 @@
 
 				<div
 					class="cards"
-					use:dndzone={{ items: columns[terminal.id], flipDurationMs: FLIP_MS, type: 'prospect' }}
+					use:dndzone={dndConfig(columns[terminal.id])}
 					onconsider={(e) => onconsider(terminal.id, e)}
 					onfinalize={(e) => onfinalize(terminal.id, e)}
 				>
@@ -333,6 +346,19 @@
 		align-items: center;
 		gap: var(--space-2);
 		margin-left: auto;
+	}
+
+	/* The sub-nav is views + worklist stats + filters on one line. Below this it
+	   wraps onto its own rows rather than squeezing the search box to nothing. */
+	@media (max-width: 1100px) {
+		.filters {
+			margin-left: 0;
+		}
+
+		.search input {
+			width: 100%;
+			min-width: 0;
+		}
 	}
 
 	.search {
@@ -510,6 +536,48 @@
 		gap: var(--space-2);
 		flex: none;
 		min-height: 0;
+	}
+
+	/* On a narrow screen four pinned columns eat most of the width and sit on top
+	   of the working stages. Below this, `display: contents` dissolves the two
+	   wrappers so every column becomes a direct child of .board and they all
+	   scroll together, terminals simply last in line. */
+	@media (max-width: 900px) {
+		.board {
+			overflow-x: auto;
+			gap: var(--space-3);
+			padding: var(--space-4) var(--space-4) var(--space-5);
+			/* Columns settle into place instead of stopping mid-gutter. */
+			scroll-snap-type: x proximity;
+		}
+
+		.column {
+			scroll-snap-align: start;
+		}
+
+		.stages,
+		.terminals {
+			display: contents;
+		}
+
+		.column {
+			flex: 0 0 82vw;
+			width: 82vw;
+			max-width: 280px;
+		}
+
+		/* Terminal columns keep their collapsed rail width; they're a destination
+		   here, not something you read at a glance. */
+		.terminal {
+			flex: 0 0 52px;
+			width: 52px;
+
+			&.expanded {
+				flex: 0 0 82vw;
+				width: 82vw;
+				max-width: 280px;
+			}
+		}
 	}
 
 	.terminal {

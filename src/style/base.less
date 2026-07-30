@@ -12,6 +12,11 @@ body {
 	height: 100%;
 }
 
+html {
+	/* Stop mobile Safari inflating text in landscape. */
+	-webkit-text-size-adjust: 100%;
+}
+
 body {
 	margin: 0;
 	background: var(--bg-app);
@@ -21,6 +26,23 @@ body {
 	line-height: 1.45;
 	-webkit-font-smoothing: antialiased;
 	text-rendering: optimizeLegibility;
+	/* The app manages its own scrolling regions; the page itself never scrolls,
+	   which also prevents rubber-banding over the fixed shell on iOS. */
+	overflow: hidden;
+	overscroll-behavior: none;
+}
+
+/* Long unbroken strings — LinkedIn URLs, pasted bios — must not force a
+   horizontal scrollbar on a narrow screen. */
+h1,
+h2,
+h3,
+h4,
+p,
+dd,
+td,
+span {
+	overflow-wrap: break-word;
 }
 
 h1,

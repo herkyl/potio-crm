@@ -393,8 +393,38 @@
 
 	.fields {
 		display: grid;
-		grid-template-columns: 1fr 1fr;
+		/* minmax(0, …) rather than plain 1fr: a track's default minimum is
+		   min-content, which a long pasted URL pushes past the viewport. */
+		grid-template-columns: repeat(2, minmax(0, 1fr));
 		gap: var(--space-3);
+	}
+
+	@media (max-width: 720px) {
+		.fields {
+			grid-template-columns: minmax(0, 1fr);
+		}
+
+		.head {
+			flex-wrap: wrap;
+		}
+
+		.head-badges {
+			flex-basis: 100%;
+		}
+
+		h2 {
+			font-size: var(--text-lg);
+		}
+
+		input,
+		textarea {
+			/* 16px stops iOS Safari zooming the viewport on focus. */
+			font-size: 16px;
+		}
+
+		.post .body {
+			word-break: break-word;
+		}
 	}
 
 	label {

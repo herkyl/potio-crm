@@ -32,9 +32,11 @@
 		aria-hidden="true"
 	></div>
 
+	<!-- Width goes through a custom property rather than an inline `max-width` so
+	     the mobile rule can drop it — an inline style would otherwise win. -->
 	<div
 		class="panel"
-		style:max-width="{width}px"
+		style:--panel-max="{width}px"
 		bind:this={dialog}
 		role="dialog"
 		aria-modal="true"
@@ -87,6 +89,10 @@
 		display: flex;
 		flex-direction: column;
 		width: 100%;
+		/* A centred grid item defaults to min-width:auto, so wide content could
+		   push the panel past the viewport and cut off the close button. */
+		min-width: 0;
+		max-width: var(--panel-max);
 		max-height: 88vh;
 		background: var(--bg-app);
 		border-radius: var(--radius-xl);
@@ -142,6 +148,7 @@
 	.body {
 		flex: 1;
 		min-height: 0;
+		min-width: 0;
 		overflow-y: auto;
 		padding: var(--space-5);
 	}
@@ -156,6 +163,46 @@
 		border-top: 1px solid var(--border-subtle);
 		background: var(--bg-hover);
 		border-radius: 0 0 var(--radius-xl) var(--radius-xl);
+	}
+
+	/* Below this the panel takes the whole screen: a centred card with margins
+	   wastes width that the content needs, and a short viewport makes the
+	   scrollable body uncomfortably small. */
+	@media (max-width: 720px) {
+		.backdrop {
+			padding: 0;
+			/* Fill rather than centre — the panel is the whole screen here. */
+			place-items: stretch;
+		}
+
+		.panel {
+			max-width: none;
+			height: 100%;
+			max-height: none;
+			border-radius: 0;
+			/* Use the dynamic viewport unit so mobile browser chrome appearing or
+			   hiding doesn't clip the footer. */
+			height: 100dvh;
+		}
+
+		header {
+			padding: var(--space-4) var(--space-4) var(--space-3);
+		}
+
+		.body {
+			padding: var(--space-4);
+		}
+
+		footer {
+			padding: var(--space-3) var(--space-4);
+			border-radius: 0;
+			/* Keep the primary action clear of the home indicator. */
+			padding-bottom: max(var(--space-3), env(safe-area-inset-bottom));
+		}
+
+		h2 {
+			font-size: var(--text-lg);
+		}
 	}
 
 	@keyframes fade {

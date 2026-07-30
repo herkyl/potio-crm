@@ -28,6 +28,9 @@
 	.frame {
 		display: flex;
 		height: 100vh;
+		/* Dynamic viewport height, so the layout doesn't sit under mobile browser
+		   chrome that appears and disappears as you scroll. */
+		height: 100dvh;
 		overflow: hidden;
 		background: var(--bg-app);
 	}

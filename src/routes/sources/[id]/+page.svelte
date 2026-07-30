@@ -253,6 +253,14 @@
 								<div class="who-text">
 									<p class="name">{row.name}</p>
 									<p class="headline">{truncate(row.snap.bio, 90) || '—'}</p>
+									<!-- Phones drop the classification column; the label still has to
+									     travel with the row, so it rides under the name there. -->
+									<p class="who-meta">
+										<Badge tone={labelTone(row.label)}>{row.label ?? 'unclassified'}</Badge>
+										<span class="who-conf">
+											<ConfidenceBar value={row.confidence} width={30} />
+										</span>
+									</p>
 								</div>
 							</div>
 						</td>
@@ -569,6 +577,14 @@
 		max-width: 42ch;
 	}
 
+	/* Only shown once the classification column is dropped (see the mobile block). */
+	.who-meta {
+		display: none;
+		align-items: center;
+		gap: var(--space-2);
+		margin-top: 2px;
+	}
+
 	.classification {
 		display: flex;
 		align-items: center;
@@ -684,6 +700,148 @@
 
 		p {
 			font-size: var(--text-base);
+		}
+	}
+
+	/* Drop the columns that are nice-to-have before the ones the decision needs.
+	   Evidence and found-at go first; name, classification and the accept/reject
+	   buttons are the fast path and stay to the end. */
+	@media (max-width: 1000px) {
+		.evidence-col {
+			display: none;
+		}
+	}
+
+	@media (max-width: 720px) {
+		.found {
+			display: none;
+		}
+
+		/* Four columns can't fit a phone, and the accept/reject buttons are the
+		   one thing that must never be pushed off-screen. The classification
+		   moves under the name instead of getting its own column. */
+		th:nth-child(3),
+		td:nth-child(3) {
+			display: none;
+		}
+
+		.who-meta {
+			display: flex;
+		}
+
+		.scroll {
+			overflow-x: auto;
+		}
+
+		.name {
+			font-size: var(--text-base);
+		}
+
+		.row-actions {
+			width: auto;
+		}
+	}
+
+	/* At phone width even the label plus a confidence bar is too much next to the
+	   buttons — the badge alone carries the signal, the bar is in the modal. */
+	@media (max-width: 560px) {
+		.who-conf {
+			display: none;
+		}
+
+		.who {
+			gap: var(--space-2);
+		}
+
+		td:first-child,
+		thead th:first-child {
+			padding-left: var(--space-3);
+		}
+
+		.filters {
+			width: 100%;
+			flex-wrap: wrap;
+
+			.search {
+				flex: 1 1 100%;
+			}
+
+			input {
+				width: 100%;
+				/* 16px stops iOS Safari zooming the viewport on focus. */
+				font-size: 16px;
+			}
+		}
+
+		select {
+			flex: 1 1 auto;
+			font-size: 16px;
+		}
+
+		.tabs {
+			width: 100%;
+			overflow-x: auto;
+		}
+
+		.tab {
+			margin-right: var(--space-3);
+			white-space: nowrap;
+		}
+
+		thead th:first-child,
+		td:first-child {
+			padding-left: var(--space-4);
+		}
+
+		thead th:last-child,
+		td:last-child {
+			padding-right: var(--space-4);
+		}
+
+		/* Auto table layout sizes columns to their content's min-width, which the
+		   headline's max-width kept pushing past the viewport. Fixed layout gives
+		   the name column whatever is left and lets the ellipsis do its job. */
+		table {
+			table-layout: fixed;
+			width: 100%;
+		}
+
+		.pick {
+			width: 40px;
+		}
+
+		.row-actions {
+			width: 92px;
+		}
+
+		.who-text {
+			min-width: 0;
+		}
+
+		.name,
+		.headline {
+			max-width: 100%;
+			overflow: hidden;
+			text-overflow: ellipsis;
+			white-space: nowrap;
+		}
+
+		.bulk {
+			flex-wrap: wrap;
+			padding: var(--space-3) var(--space-4);
+		}
+	}
+
+	/* Touch needs a bigger target than a 30px icon button. */
+	@media (pointer: coarse) {
+		.act {
+			width: 40px;
+			height: 40px;
+		}
+
+		.pick input {
+			width: 20px;
+			height: 20px;
 		}
 	}
 </style>

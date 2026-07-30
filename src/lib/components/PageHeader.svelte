@@ -52,4 +52,35 @@
 		padding: 0 var(--space-6);
 		min-width: 0;
 	}
+
+	@media (max-width: 1100px) {
+		.subnav {
+			flex-wrap: wrap;
+			gap: var(--space-2) var(--space-4);
+			padding-bottom: var(--space-3);
+		}
+	}
+
+	@media (max-width: 720px) {
+		.top {
+			flex-wrap: wrap;
+			gap: var(--space-3);
+			padding: var(--space-4);
+		}
+
+		h1 {
+			flex: 1 1 100%;
+			font-size: var(--text-2xl);
+		}
+
+		.actions {
+			flex: 1 1 100%;
+			flex-wrap: wrap;
+		}
+
+		.subnav {
+			padding-left: var(--space-4);
+			padding-right: var(--space-4);
+		}
+	}
 </style>

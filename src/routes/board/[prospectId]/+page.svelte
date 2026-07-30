@@ -558,7 +558,9 @@
 
 	.grid {
 		display: grid;
-		grid-template-columns: 1fr 1fr;
+		/* minmax(0, …) rather than plain 1fr: a track's default minimum is
+		   min-content, which a long LinkedIn URL pushes past the viewport. */
+		grid-template-columns: repeat(2, minmax(0, 1fr));
 		gap: var(--space-3) var(--space-5);
 	}
 
@@ -907,5 +909,75 @@
 
 	.dim {
 		color: var(--text-muted);
+	}
+	/* --- Mobile ------------------------------------------------------------
+	   Kept last so these override the desktop rules above rather than being
+	   overridden by them. --- */
+
+	@media (max-width: 720px) {
+		.grid {
+			grid-template-columns: minmax(0, 1fr);
+		}
+
+		.head {
+			gap: var(--space-2);
+		}
+
+		.head-state {
+			align-items: flex-end;
+		}
+
+		h2 {
+			font-size: var(--text-lg);
+		}
+
+		/* Stage select and the next-action row stack rather than shrinking to
+		   unusable widths. */
+		.controls {
+			flex-direction: column;
+			align-items: stretch;
+			gap: var(--space-3);
+		}
+
+		.next-action {
+			flex-wrap: wrap;
+
+			label {
+				flex: 1 1 100%;
+			}
+		}
+
+		select,
+		input,
+		textarea {
+			width: 100%;
+			/* 16px stops iOS Safari zooming the viewport on focus. */
+			font-size: 16px;
+		}
+
+		.note-form {
+			flex-direction: column;
+			align-items: stretch;
+		}
+
+		.milestones {
+			gap: var(--space-3);
+		}
+
+		.provenance li header {
+			gap: var(--space-2);
+		}
+
+		.when {
+			margin-left: 0;
+		}
+
+		.close-form {
+			max-width: none;
+		}
+
+		.footer-note {
+			display: none;
+		}
 	}
 </style>

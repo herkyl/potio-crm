@@ -200,4 +200,18 @@
 		color: var(--text-muted);
 		font-weight: var(--weight-normal);
 	}
+
+	@media (max-width: 720px) {
+		.scroll {
+			padding: var(--space-4);
+		}
+
+		.tables {
+			grid-template-columns: 1fr;
+		}
+
+		code {
+			word-break: break-all;
+		}
+	}
 </style>

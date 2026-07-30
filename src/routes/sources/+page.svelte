@@ -149,8 +149,20 @@
 
 	.grid {
 		display: grid;
-		grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+		/* 260px rather than 300px so a single card still fits a 320px phone once
+		   the rail and padding are taken out. */
+		grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
 		gap: var(--space-4);
+	}
+
+	@media (max-width: 720px) {
+		.scroll {
+			padding: var(--space-4);
+		}
+
+		.grid {
+			grid-template-columns: 1fr;
+		}
 	}
 
 	.source {

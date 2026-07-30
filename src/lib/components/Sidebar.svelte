@@ -26,9 +26,7 @@
 
 <aside class="sidebar" class:collapsed>
 	<div class="brand">
-		{#if !collapsed}
-			<span class="wordmark">potio<span class="dim">crm</span></span>
-		{/if}
+		<span class="wordmark">potio<span class="dim">crm</span></span>
 		<button
 			class="collapse"
 			onclick={() => (collapsed = !collapsed)}
@@ -42,7 +40,7 @@
 	<nav>
 		{#each groups as group}
 			<div class="group">
-				{#if !collapsed}<p class="group-label">{group.label}</p>{/if}
+				<p class="group-label">{group.label}</p>
 				<ul>
 					{#each group.items as item}
 						{@const active = isActive(item.href)}
@@ -52,14 +50,12 @@
 								href={item.href}
 								class="nav-item"
 								class:active
-								title={collapsed ? item.label : undefined}
+								title={item.label}
 								aria-current={active ? 'page' : undefined}
 							>
 								<Icon name={item.icon} size={18} />
-								{#if !collapsed}
-									<span class="label">{item.label}</span>
-									{#if count}<span class="count">{count}</span>{/if}
-								{/if}
+								<span class="label">{item.label}</span>
+								{#if count}<span class="count">{count}</span>{/if}
 							</a>
 						</li>
 					{/each}
@@ -71,7 +67,7 @@
 	<div class="foot">
 		<a href="/settings" class="nav-item" class:active={isActive('/settings')} title="Settings">
 			<Icon name="settings" size={18} />
-			{#if !collapsed}<span class="label">Settings</span>{/if}
+			<span class="label">Settings</span>
 		</a>
 	</div>
 </aside>
@@ -210,7 +206,16 @@
 		border-top: 1px solid var(--border-subtle);
 	}
 
+	/* Labels are always in the DOM and hidden with CSS, so the rail can be driven
+	   either by the toggle or by a media query without duplicating the markup. */
 	.collapsed {
+		.label,
+		.count,
+		.group-label,
+		.wordmark {
+			display: none;
+		}
+
 		.nav-item {
 			justify-content: center;
 			padding: var(--space-2);
@@ -218,6 +223,40 @@
 
 		.brand {
 			justify-content: center;
+		}
+	}
+
+	/* Below this the sidebar is always a rail — 240px of nav is too much of a
+	   phone screen to give up, and the toggle isn't worth the tap target. */
+	@media (max-width: 900px) {
+		.sidebar {
+			width: 60px;
+			padding: var(--space-3) var(--space-2);
+		}
+
+		.label,
+		.count,
+		.group-label,
+		.wordmark {
+			display: none;
+		}
+
+		.nav-item {
+			justify-content: center;
+			padding: var(--space-3) var(--space-2);
+		}
+
+		.brand {
+			justify-content: center;
+			padding: var(--space-1) 0 var(--space-4);
+		}
+
+		.collapse {
+			display: none;
+		}
+
+		.group + .group {
+			margin-top: var(--space-4);
 		}
 	}
 </style>
