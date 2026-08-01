@@ -126,10 +126,16 @@ export async function candidateTabCounts(db, sourceId) {
 export async function getCandidate(db, leadId) {
 	const lead = await db.get(
 		`SELECT sl.*,
+		        -- raw_json is the scanner's untouched capture; snapshot_json is only
+		        -- the subset ingest kept. The source tab needs both to be lossless.
+		        m.raw_json AS member_raw_json,
+		        s.name AS source_name,
 		        (SELECT id FROM prospects
 		          WHERE person_id = sl.person_id
 		          ORDER BY (status = 'open') DESC, created_at DESC LIMIT 1) AS prospect_id
 		 FROM source_leads sl
+		 LEFT JOIN sources s ON s.id = sl.source_id
+		 LEFT JOIN members m ON m.id = sl.external_id
 		 WHERE sl.id = ?`,
 		[leadId]
 	);
@@ -137,8 +143,8 @@ export async function getCandidate(db, leadId) {
 
 	// Their other posts in the group, for context alongside the flagging one.
 	const posts = await db.all(
-		`SELECT p.id, p.title, p.body, p.url, p.posted_at,
-		        pc.is_help_request, pc.lead_score
+		`SELECT p.id, p.title, p.body, p.url, p.posted_at, p.raw_json,
+		        pc.is_help_request, pc.lead_score, pc.reasoning
 		 FROM posts p
 		 LEFT JOIN post_classification pc ON pc.post_id = p.id
 		 WHERE p.author_id = ?
@@ -227,13 +233,17 @@ export async function getProspect(db, prospectId) {
 			[prospectId]
 		),
 
-		// Every source this person came from, with the scanner's verdict.
+		// Every source this person came from, with the scanner's verdict and its
+		// untouched capture, so tab 2 can show everything rather than the subset
+		// ingest kept.
 		db.all(
 			`SELECT sl.id, sl.source_id, sl.external_id, sl.label, sl.confidence, sl.reasoning,
 			        sl.evidence_json, sl.snapshot_json, sl.found_at, sl.triaged_at,
-			        s.name AS source_name
+			        s.name AS source_name,
+			        m.raw_json AS member_raw_json
 			 FROM source_leads sl
 			 JOIN sources s ON s.id = sl.source_id
+			 LEFT JOIN members m ON m.id = sl.external_id
 			 WHERE sl.person_id = ${PERSON}
 			 ORDER BY sl.found_at DESC`,
 			[prospectId]
@@ -248,7 +258,8 @@ export async function getProspect(db, prospectId) {
 
 		// Their posts, keyed off whichever external ids we know them by.
 		db.all(
-			`SELECT p.id, p.title, p.body, p.url, p.posted_at, pc.is_help_request, pc.lead_score
+			`SELECT p.id, p.title, p.body, p.url, p.posted_at, p.raw_json,
+			        pc.is_help_request, pc.lead_score, pc.reasoning
 			 FROM posts p
 			 LEFT JOIN post_classification pc ON pc.post_id = p.id
 			 WHERE p.author_id IN (

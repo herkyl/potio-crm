@@ -2,6 +2,16 @@
 	// Board data as a sortable, filterable table with bulk edit. SPEC §3.5.
 
 	import { enhance } from '$app/forms';
+	import { invalidate } from '$app/navigation';
+	import { page } from '$app/state';
+	import ProspectModal from '$lib/components/ProspectModal.svelte';
+	import {
+		PROSPECT_PARAM,
+		openIdFrom,
+		openModal,
+		selectModal,
+		closeModal
+	} from '$lib/modal-url.js';
 	import PageHeader from '$lib/components/PageHeader.svelte';
 	import Button from '$lib/components/Button.svelte';
 	import Icon from '$lib/components/Icon.svelte';
@@ -26,6 +36,22 @@
 	let sortKey = $state('stage_entered_at');
 	let sortDir = $state('desc');
 	let selected = $state(new Set());
+
+	// Opening a row must keep you on the list. This was the whole reason the
+	// modal stopped being a route.
+	const openId = $derived(openIdFrom(page, PROSPECT_PARAM));
+
+	// See triage: invalidating while open resets `page.state` and closes the
+	// modal, so the refresh waits until it's dismissed.
+	let listDirty = $state(false);
+
+	function closeProspect() {
+		closeModal();
+		if (listDirty) {
+			listDirty = false;
+			invalidate('crm:board');
+		}
+	}
 
 	const COLUMNS = [
 		{ key: 'full_name', label: 'Name' },
@@ -198,13 +224,13 @@
 							/>
 						</td>
 						<td>
-							<a class="who" href="/board/{row.id}">
+							<button class="who" onclick={() => openModal(PROSPECT_PARAM, row.id)}>
 								<Avatar name={row.full_name} id={row.person_id} size={26} />
 								<span>
 									<span class="name">{row.full_name}</span>
 									<span class="headline">{truncate(row.headline, 60)}</span>
 								</span>
-							</a>
+							</button>
 						</td>
 						<td class="stage"><Badge tone="neutral">{stageLabel(row.stage)}</Badge></td>
 						<td class="status">
@@ -238,6 +264,17 @@
 		</table>
 	{/if}
 </div>
+
+{#if openId}
+	<ProspectModal
+		kind="prospect"
+		id={openId}
+		ids={rows.map((r) => r.id)}
+		onclose={closeProspect}
+		onselect={(next) => selectModal(PROSPECT_PARAM, next)}
+		onchanged={() => (listDirty = true)}
+	/>
+{/if}
 
 <style lang="less">
 	.views {

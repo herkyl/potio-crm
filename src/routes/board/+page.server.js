@@ -1,7 +1,18 @@
 import { fail, redirect } from '@sveltejs/kit';
 import { db } from '$lib/server/db.js';
+import { listProspects, worklist } from '$lib/server/queries.js';
 import { createManualProspect } from '$lib/server/prospects.js';
 import { normaliseLinkedInSlug, linkedInUrlFromSlug } from '$lib/linkedin.js';
+
+// The board used to live in a layout so that `/board/[prospectId]` could render
+// a modal over it. The modal is a query parameter now, so there's no child route
+// and no reason for the split.
+export async function load({ depends }) {
+	depends('crm:board');
+
+	const [prospects, stats] = await Promise.all([listProspects(db()), worklist(db())]);
+	return { prospects, stats };
+}
 
 export const actions = {
 	// "Add prospect manually" — for someone who never came through a source at all.

@@ -1,6 +1,6 @@
 <script>
 	import { enhance } from '$app/forms';
-	import { goto } from '$app/navigation';
+	import { goto, invalidateAll } from '$app/navigation';
 	import { page } from '$app/state';
 	import PageHeader from '$lib/components/PageHeader.svelte';
 	import Button from '$lib/components/Button.svelte';
@@ -8,14 +8,36 @@
 	import Avatar from '$lib/components/Avatar.svelte';
 	import Badge from '$lib/components/Badge.svelte';
 	import ConfidenceBar from '$lib/components/ConfidenceBar.svelte';
-	import CandidateModal from '$lib/components/CandidateModal.svelte';
+	import ProspectModal from '$lib/components/ProspectModal.svelte';
 	import DuplicatePrompt from '$lib/components/DuplicatePrompt.svelte';
+	import {
+		CANDIDATE_PARAM,
+		openIdFrom,
+		openModal,
+		selectModal,
+		closeModal
+	} from '$lib/modal-url.js';
 	import { parseJson, truncate, shortAge, fullDate } from '$lib/format.js';
 
 	let { data, form } = $props();
 
 	let selected = $state(new Set());
-	let openLeadId = $state(null);
+	// The open candidate is a query parameter on this page — opening one must not
+	// navigate away from triage.
+	const openLeadId = $derived(openIdFrom(page, CANDIDATE_PARAM));
+
+	// Refreshing while the modal is open would tear it down: any invalidation
+	// resets `page.state`, which is what shallow routing keeps the open record in.
+	// Mark it dirty instead and reload once, on close.
+	let listDirty = $state(false);
+
+	function closeCandidate() {
+		closeModal();
+		if (listDirty) {
+			listDirty = false;
+			invalidateAll();
+		}
+	}
 	let lastUndo = $state(null);
 
 	const TABS = [
@@ -229,10 +251,10 @@
 				{#each rows as row (row.id)}
 					<tr
 						class:picked={selected.has(row.id)}
-						onclick={() => (openLeadId = row.id)}
+						onclick={() => openModal(CANDIDATE_PARAM, row.id)}
 						tabindex="0"
 						onkeydown={(e) => {
-							if (e.key === 'Enter') openLeadId = row.id;
+							if (e.key === 'Enter') openModal(CANDIDATE_PARAM, row.id);
 						}}
 					>
 						<td class="pick">
@@ -328,10 +350,13 @@
 </div>
 
 {#if openLeadId}
-	<CandidateModal
-		sourceId={data.source.id}
-		leadId={openLeadId}
-		onclose={() => (openLeadId = null)}
+	<ProspectModal
+		kind="candidate"
+		id={openLeadId}
+		ids={rows.map((r) => r.id)}
+		onclose={closeCandidate}
+		onselect={(next) => selectModal(CANDIDATE_PARAM, next)}
+		onchanged={() => (listDirty = true)}
 	/>
 {/if}
 

@@ -125,6 +125,36 @@ Three rules this codebase follows, learned the hard way:
 - **Independent queries go out concurrently.** If a query only needs an id, resolve that id
   as a subquery rather than awaiting a prior round trip for it.
 
+## One modal, three entry points
+
+Board, list and triage all render the same `ProspectModal`. Two things make that possible:
+
+- It talks to `/api/prospect/[id]` and `/api/candidate/[id]` rather than to form actions
+  scoped to a route, so it doesn't care which page it's mounted on.
+- It normalises both kinds of record into one `fields` shape. A candidate is a raw Skool
+  snapshot with the name in two halves; a prospect is a `people` row. Only the **footer**
+  differs — accept/reject for a candidate, Done for a prospect.
+
+Every field autosaves: ~400ms after you stop typing, and again on blur. There is no save
+button anywhere, and the header shows Saving… / Saved.
+
+**Opening a record never changes route.** It sets `?prospect=<id>` (or `?candidate=<id>`)
+via shallow routing, so opening a row from the list keeps you on the list. Two traps here,
+both already hit:
+
+- `pushState` updates the address bar but **not** `page.url` — shallow routing's reactive
+  channel is `page.state`. [`modal-url.js`](src/lib/modal-url.js) reads both, so a pasted
+  or reloaded URL still opens the right record.
+- **Never invalidate while the modal is open.** Any invalidation resets `page.state`, which
+  tears the modal down mid-edit. The views set a dirty flag and refresh on close instead —
+  which also avoids refetching the whole board after every keystroke.
+
+Prev/next steps through the opening view's *current filtered and sorted* set — `←`/`→` or
+`j`/`k`, with the position shown ("14 of 87"). Keys are ignored while typing in a field.
+
+Tab 2 is deliberately lossless: the classifier's verdict, the snapshot ingest kept, **and**
+the untouched `members.raw_json` from the scanner, plus the JSON itself.
+
 ## Responsive behaviour
 
 Three breakpoints, used consistently. They're plain px in each component's scoped
