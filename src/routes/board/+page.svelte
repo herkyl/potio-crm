@@ -9,31 +9,12 @@
 	import ManualProspectModal from '$lib/components/ManualProspectModal.svelte';
 	import ProspectModal from '$lib/components/ProspectModal.svelte';
 	import { STAGES, STAGE_IDS, TERMINAL_STATUSES, isStale } from '$lib/stages.js';
-	import { page } from '$app/state';
-	import {
-		PROSPECT_PARAM,
-		openIdFrom,
-		openModal,
-		selectModal,
-		closeModal
-	} from '$lib/modal-url.js';
+	import { PROSPECT_PARAM, createModalNav } from '$lib/modal-url.svelte.js';
 
 	let { data } = $props();
 
 	// Opening a card is a query parameter on this page, never a route change.
-	const openId = $derived(openIdFrom(page, PROSPECT_PARAM));
-
-	// See triage: invalidating while open resets `page.state` and closes the
-	// modal, so the refresh waits until it's dismissed.
-	let boardDirty = $state(false);
-
-	function closeProspect() {
-		closeModal();
-		if (boardDirty) {
-			boardDirty = false;
-			invalidate('crm:board');
-		}
-	}
+	const modal = createModalNav(PROSPECT_PARAM);
 
 	const FLIP_MS = 160;
 	const TERMINAL_IDS = TERMINAL_STATUSES.map((t) => t.id);
@@ -255,7 +236,7 @@
 				>
 					{#each columns[stage.id] as prospect (prospect.id)}
 						<div animate:flip={{ duration: FLIP_MS }}>
-							<ProspectCard {prospect} onopen={(id) => openModal(PROSPECT_PARAM, id)} />
+							<ProspectCard {prospect} onopen={(id) => modal.open(id)} />
 						</div>
 					{/each}
 				</div>
@@ -296,7 +277,7 @@
 					{#each columns[terminal.id] as prospect (prospect.id)}
 						<div animate:flip={{ duration: FLIP_MS }}>
 							{#if expanded[terminal.id]}
-								<ProspectCard {prospect} onopen={(id) => openModal(PROSPECT_PARAM, id)} />
+								<ProspectCard {prospect} onopen={(id) => modal.open(id)} />
 							{:else}
 								<div class="mini" title={prospect.full_name}>{prospect.full_name}</div>
 							{/if}
@@ -312,14 +293,14 @@
 	<ManualProspectModal onclose={() => (addingManually = false)} />
 {/if}
 
-{#if openId}
+{#if modal.id}
 	<ProspectModal
 		kind="prospect"
-		id={openId}
+		id={modal.id}
 		ids={orderedIds}
-		onclose={closeProspect}
-		onselect={(next) => selectModal(PROSPECT_PARAM, next)}
-		onchanged={() => (boardDirty = true)}
+		onclose={() => modal.close()}
+		onselect={(next) => modal.select(next)}
+		onchanged={() => invalidate('crm:board')}
 	/>
 {/if}
 

@@ -10,13 +10,7 @@
 	import ConfidenceBar from '$lib/components/ConfidenceBar.svelte';
 	import ProspectModal from '$lib/components/ProspectModal.svelte';
 	import DuplicatePrompt from '$lib/components/DuplicatePrompt.svelte';
-	import {
-		CANDIDATE_PARAM,
-		openIdFrom,
-		openModal,
-		selectModal,
-		closeModal
-	} from '$lib/modal-url.js';
+	import { CANDIDATE_PARAM, createModalNav } from '$lib/modal-url.svelte.js';
 	import { parseJson, truncate, shortAge, fullDate } from '$lib/format.js';
 
 	let { data, form } = $props();
@@ -24,20 +18,7 @@
 	let selected = $state(new Set());
 	// The open candidate is a query parameter on this page — opening one must not
 	// navigate away from triage.
-	const openLeadId = $derived(openIdFrom(page, CANDIDATE_PARAM));
-
-	// Refreshing while the modal is open would tear it down: any invalidation
-	// resets `page.state`, which is what shallow routing keeps the open record in.
-	// Mark it dirty instead and reload once, on close.
-	let listDirty = $state(false);
-
-	function closeCandidate() {
-		closeModal();
-		if (listDirty) {
-			listDirty = false;
-			invalidateAll();
-		}
-	}
+	const modal = createModalNav(CANDIDATE_PARAM);
 	let lastUndo = $state(null);
 
 	const TABS = [
@@ -251,10 +232,10 @@
 				{#each rows as row (row.id)}
 					<tr
 						class:picked={selected.has(row.id)}
-						onclick={() => openModal(CANDIDATE_PARAM, row.id)}
+						onclick={() => modal.open(row.id)}
 						tabindex="0"
 						onkeydown={(e) => {
-							if (e.key === 'Enter') openModal(CANDIDATE_PARAM, row.id);
+							if (e.key === 'Enter') modal.open(row.id);
 						}}
 					>
 						<td class="pick">
@@ -349,14 +330,14 @@
 	{/if}
 </div>
 
-{#if openLeadId}
+{#if modal.id}
 	<ProspectModal
 		kind="candidate"
-		id={openLeadId}
+		id={modal.id}
 		ids={rows.map((r) => r.id)}
-		onclose={closeCandidate}
-		onselect={(next) => selectModal(CANDIDATE_PARAM, next)}
-		onchanged={() => (listDirty = true)}
+		onclose={() => modal.close()}
+		onselect={(next) => modal.select(next)}
+		onchanged={() => invalidateAll()}
 	/>
 {/if}
 

@@ -3,15 +3,8 @@
 
 	import { enhance } from '$app/forms';
 	import { invalidate } from '$app/navigation';
-	import { page } from '$app/state';
 	import ProspectModal from '$lib/components/ProspectModal.svelte';
-	import {
-		PROSPECT_PARAM,
-		openIdFrom,
-		openModal,
-		selectModal,
-		closeModal
-	} from '$lib/modal-url.js';
+	import { PROSPECT_PARAM, createModalNav } from '$lib/modal-url.svelte.js';
 	import PageHeader from '$lib/components/PageHeader.svelte';
 	import Button from '$lib/components/Button.svelte';
 	import Icon from '$lib/components/Icon.svelte';
@@ -39,19 +32,7 @@
 
 	// Opening a row must keep you on the list. This was the whole reason the
 	// modal stopped being a route.
-	const openId = $derived(openIdFrom(page, PROSPECT_PARAM));
-
-	// See triage: invalidating while open resets `page.state` and closes the
-	// modal, so the refresh waits until it's dismissed.
-	let listDirty = $state(false);
-
-	function closeProspect() {
-		closeModal();
-		if (listDirty) {
-			listDirty = false;
-			invalidate('crm:board');
-		}
-	}
+	const modal = createModalNav(PROSPECT_PARAM);
 
 	const COLUMNS = [
 		{ key: 'full_name', label: 'Name' },
@@ -224,7 +205,7 @@
 							/>
 						</td>
 						<td>
-							<button class="who" onclick={() => openModal(PROSPECT_PARAM, row.id)}>
+							<button class="who" onclick={() => modal.open(row.id)}>
 								<Avatar name={row.full_name} id={row.person_id} size={26} />
 								<span>
 									<span class="name">{row.full_name}</span>
@@ -265,14 +246,14 @@
 	{/if}
 </div>
 
-{#if openId}
+{#if modal.id}
 	<ProspectModal
 		kind="prospect"
-		id={openId}
+		id={modal.id}
 		ids={rows.map((r) => r.id)}
-		onclose={closeProspect}
-		onselect={(next) => selectModal(PROSPECT_PARAM, next)}
-		onchanged={() => (listDirty = true)}
+		onclose={() => modal.close()}
+		onselect={(next) => modal.select(next)}
+		onchanged={() => invalidate('crm:board')}
 	/>
 {/if}
 
