@@ -503,6 +503,11 @@
 		display: flex;
 		align-items: center;
 		gap: var(--space-3);
+		width: 100%;
+		/* This is a <button> now that opening a row is a query parameter rather
+		   than a link. Buttons centre their text by default, which the name and
+		   headline spans inherit. */
+		text-align: left;
 
 		&:hover .name {
 			text-decoration: underline;
